@@ -25,7 +25,7 @@ acc pwd B,F 网络
 ```
 
 课程名为模糊匹配，类型与课程名为与关系。
-# Dependencies
+## Dependencies
 按需选择打码库  
 
 ddddocr-cpu:https://github.com/zixing131/ddddocrsharp 
