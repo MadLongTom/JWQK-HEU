@@ -33,8 +33,8 @@ internal class Program
         Manager.LoginCount++;
         if (Manager.LoginCount == tasks.Count - 1)
         {
-            ocr.Dispose();
-            GC.Collect();
+            //ocr.Dispose();
+            //GC.Collect();
         }
     }
     static async Task Run(dddddocr ocr, int serial, Entity entity)
@@ -185,7 +185,7 @@ internal class Program
                     Console.WriteLine($"{entity.username}:{DateTime.Now:HH:mm:ss} {@class.KCM}");
                     try
                     {
-                        File.AppendAllText("success.txt", $"{entity.username}:{DateTime.Now:HH:mm:ss} {@class.KCM}");
+                        File.AppendAllText("success.txt", $"{entity.username}:{DateTime.Now:HH:mm:ss} {@class.KCM} \r\n");
                     }
                     catch (Exception ex) { }
                     return true;
@@ -258,8 +258,8 @@ internal class Program
         List<Row> privateList = [];
         if (entity.classname.Count > 0 && entity.category.Count > 0)
         {
-            privateList = publicList.Where(p => entity.classname.Any(q =>
-            p.KCM.Contains(q)) && entity.category.Contains(xgxklb.First(t => p.XGXKLB.Contains(t.Key)).Key)).ToList();
+            privateList = publicList.Where(p => entity.classname.Any(q =>p.KCM.Contains(q)) && 
+            entity.category.Contains(xgxklb.First(t => p.XGXKLB.Contains(t.Key)).Key)).ToList();
         }
         else if (entity.classname.Count > 0)
         {
