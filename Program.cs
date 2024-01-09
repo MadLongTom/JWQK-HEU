@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using ddddocrsharp;
 using Yaap;
 
@@ -10,9 +11,15 @@ internal class Program
 {
     static List<Task> tasks = [];
     static dddddocr ocr = new(show_ad: false);
+    static int ide = Random.Shared.Next(1000,9999);
     // CUDA环境(CUDA=11.6,cuDNN=8.5.0.96)
     private static void Main(string[] args)
     {
+        /*ListRoot? root = JsonSerializer.Deserialize<ListRoot>(File.ReadAllText("classList.txt"));
+        File.WriteAllLines("test.txt", root!.data.rows.Select(c => c.ToString()));*/
+        DateTime dt = DateTime.Parse("06:00:00");
+        Console.WriteLine(dt - DateTime.Now);
+        //Thread.Sleep(dt - DateTime.Now);
         Stopwatch sw = Stopwatch.StartNew();
         List<string> list = [.. File.ReadAllLines("acc.txt")];
         foreach (var i in Enumerable.Range(0, list.Count).Yaap())
@@ -42,6 +49,7 @@ internal class Program
         try
         {
             var client = BuildInstance();
+            //entity.finished = false;
             Stopwatch stopwatch = Stopwatch.StartNew();
             loc_cap:
             var res = await Captcha(client);
@@ -50,18 +58,21 @@ internal class Program
             YaapConsole.WriteLine($"{serial:D4}:{auth}");
             res = await Login(client, entity.username, AESEncrypt(entity.password), captcha!.data.uuid, auth);
             var ls = await res.Content.ReadFromJsonAsync<LoginRoot>();
+            if (ls.msg.Contains("密码错误")) { WriteFileAsync("error.txt", ide.ToString()+entity.ToString());return; }
             YaapConsole.WriteLine($"{entity.username}:{ls!.code}");
             if (ls!.code == 200)
             {
-                ReportLoginState();
+                //Console.WriteLine(await res.Content.ReadAsStringAsync());
+                //ReportLoginState();
                 client.DefaultRequestHeaders.Authorization = new(ls.data.token);
                 client.DefaultRequestHeaders.Add("Cookie", $"Authorization={ls.data.token}");
-                client.DefaultRequestHeaders.Add("batchId", "003acc046ba941eeb52513b3f8294432");
+                client.DefaultRequestHeaders.Add("batchId", "eb7b2a1a1a834276ab3594e9bc3f836b");
                 await SelectCourseTillDie(client, entity);
                 //await Task.Delay(10000);
             }
             else
             {
+                if (ls.msg.Contains("不在本次")) return;
                 goto loc_cap;
             }
             stopwatch.Stop();
@@ -76,6 +87,11 @@ internal class Program
 
     static HttpClient BuildInstance()
     {
+        /*HttpClientHandler httpClientHandler = new HttpClientHandler()
+        {
+            Proxy = new WebProxy("123.321.123.321:6666"),
+            UseProxy = true
+        };*/
         HttpClient client = new();
         client.DefaultRequestHeaders.Accept.Clear();
         client.DefaultRequestHeaders.Accept.Add(new("application/json"));
@@ -122,12 +138,12 @@ internal class Program
         var dataList = new Dictionary<string, object>
         {
             { "SFCT", "0" },
-            //{ "XGXKLB",xgxklb["F"] },
+            //{ "XGXKLB",xgxklb["F"] }, //global filter
             //{ "KEY","网络" },
             { "campus", "01" },
             { "orderBy", "" },
             { "pageNumber",1 },
-            { "pageSize" , 200 },
+            { "pageSize" , 300 },
             { "teachingClassType" , "XGKC" }
         };
         loc_resent1:
@@ -159,14 +175,13 @@ internal class Program
 
     static async Task<bool> Add(HttpClient client, Entity entity, Row @class)
     {
-
         var addUrl = "http://jwxk.hrbeu.edu.cn/xsxk/elective/clazz/add";
         var addData = new Dictionary<string, string>
         {
             { "clazzType", "XGKC" },
             { "clazzId",@class.JXBID },
             { "secretVal",@class.secretVal },
-            //{ "chooseVolunteer", "1" }
+            //{ "chooseVolunteer", "1" }  //正选不传
         };
         try
         {
@@ -185,7 +200,7 @@ internal class Program
                     Console.WriteLine($"{entity.username}:{DateTime.Now:HH:mm:ss} {@class.KCM}");
                     try
                     {
-                        File.AppendAllText("success.txt", $"{entity.username}:{DateTime.Now:HH:mm:ss} {@class.KCM} \r\n");
+                        await WriteFileAsync("success.txt", $"{entity.username}:{DateTime.Now} {@class} \r\n");
                     }
                     catch (Exception ex) { }
                     return true;
@@ -197,7 +212,11 @@ internal class Program
                         goto loc_resent;
                     }
                     if (addContent.msg.Contains("已选满5门，不可再选")) { entity.finished = true; return true; }
-                    //if (addContent.msg.Contains("选课结果中") || addContent.msg.Contains("不能重复选课")) { entity.done.Add(@class); }
+                    if (addContent.msg.Contains("容量已满")) return false;
+                    if (addContent.msg.Contains("选课结果中") || addContent.msg.Contains("不能重复选课")) { return false; };
+                    if (addContent.msg.Contains("学分超过")) { entity.finished = true; }
+                    if (addContent.msg.Contains("冲突")) { entity.done.Add(@class); return false; }
+                    if (addContent.msg.Contains("请重新登录")) { entity.finished = true;tasks.Add(Run(ocr, Random.Shared.Next(1000, 9999), entity)); }
                     Console.WriteLine($"{entity.username}:{@class.KCM} {addContent.msg}");
                     return false;
                 }
@@ -253,6 +272,7 @@ internal class Program
     }
     static async Task SelectCourseTillDie(HttpClient client, Entity entity)
     {
+        loc_suc:
         Dictionary<string, int>? xgxklb = new() { { "A", 12 }, { "B", 13 }, { "C", 14 }, { "D", 15 }, { "E", 16 }, { "F", 17 }, { "A0", 18 } };
         List<Row> publicList = await GetAvailableClass(client, entity);
         List<Row> privateList = [];
@@ -275,16 +295,32 @@ internal class Program
         }
         while (true)
         {
-            if (entity.finished) return;
             privateList.RemoveAll(q => entity.done.Any(p => p.KCH == q.KCH));
             foreach (Row @class in privateList)
             {
+                if (entity.finished) return;
                 await Task.Delay(250);
                 if (await Add(client, entity, @class))
                 {
                     entity.done.Add(@class);
+                    goto loc_suc;
                 }
             }
+        }
+    }
+    private static SemaphoreSlim writeLock = new(1, 1);
+
+    public static async Task WriteFileAsync(string path, string text)
+    {
+        await writeLock.WaitAsync();
+        try
+        {
+            using StreamWriter sw = new(path, true);
+            await sw.WriteLineAsync(text);
+        }
+        finally
+        {
+            writeLock.Release();
         }
     }
 }
@@ -437,7 +473,7 @@ public partial class Data
     public int total { get; set; }
     public Row[] rows { get; set; }
 }
-public partial class Row
+public partial record Row
 {
     public string KCH { get; set; }
     public string KCM { get; set; }
@@ -529,7 +565,7 @@ public partial class SKSJ
     public string KXH { get; set; }
     public string SKJS { get; set; }
 }
-public partial class Row
+public partial record Row
 {
     public string teachCampus { get; set; }
     public string SFXZXB { get; set; }
