@@ -1,5 +1,13 @@
 # JWQK-HEU
  金智教务系统协议抢课（哈尔滨工程大学）
+此版本为批量特化型，本项目专注带动行业内卷。
+## Other Versions 
+**C#** : https://github.com/MadLongTom/JWQK-HEU
+**Rust** : https://github.com/Parsifa1/ClassGet_rs
+**Golang** : https://github.com/Grteen/complete_classes_script
+**JavaScript** : 
+https://github.com/XUEWUQIUSHUANG/gggggggggrab
+*To be continued...*
 ## Performance 
 在23-24-2学期正选运行两天，总POST数超过40,000,000次，使用261个有效账号抢到370节课（与退课数量有关，在有其他脚本的情况下抢到比例>80%）
 ## Known Issues
