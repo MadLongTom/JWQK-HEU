@@ -15,7 +15,7 @@ https://github.com/XUEWUQIUSHUANG/gggggggggrab
 ## Performance 
 在23-24-2学期正选运行两天，总POST数超过40,000,000次，使用261个有效账号抢到370节课（与退课数量有关，在有其他脚本的情况下抢到比例>80%）
 ## Known Issues
-### 金智运维会手动BAN IP，已将脚本升级为分布式代理模式，在此不发布，使用代理的思路是用*HttpClientHandler*添加
+1. 金智运维会手动BAN IP，已将脚本升级为分布式代理模式，在此不发布，使用代理的思路是用*HttpClientHandler*添加
 ```csharp
  HttpClientHandler httpClientHandler = new HttpClientHandler()
  {
@@ -29,8 +29,8 @@ https://github.com/XUEWUQIUSHUANG/gggggggggrab
      Timeout = TimeSpan.FromSeconds(30)
  };
 ```
-### 代理可能会被检测，目前最新思路是使用云服务商的闲置服务器跑脚本，几块钱几个小时，BAN就换。
-### 此版本BatchID需要手动修改，自动化的思路是获取Login接口回执中的Data.Student.hrbeulcmap中的第一个元素的Key。
+2. 代理可能会被检测，目前最新思路是使用云服务商的闲置服务器跑脚本，几块钱几个小时，BAN就换。
+3. 此版本BatchID需要手动修改，自动化的思路是获取Login接口回执中的Data.Student.hrbeulcmap中的第一个元素的Key。
 ## Usage
 在exe同目录下建立acc.txt，格式如下： 
 
