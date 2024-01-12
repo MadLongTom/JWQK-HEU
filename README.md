@@ -1,6 +1,4 @@
 # JWQK-HEU
- 金智教务系统协议抢课
- 此版本为批量特化型，本项目专注带动行业内卷。
 ## Other Versions 
 **C#** : https://github.com/MadLongTom/JWQK-HEU 
 
