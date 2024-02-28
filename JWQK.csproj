@@ -8,12 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="UserAgent" Version="1.3.1" />
     <PackageReference Include="Yaap.zhipwang" Version="0.6.6" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="D:\ddddocrsharp-main\src\ddddocrsharp\ddddocrsharp.csproj" />
   </ItemGroup>
 
 </Project>
