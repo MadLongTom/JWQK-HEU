@@ -1,17 +1,18 @@
 ﻿// See https://aka.ms/new-console-template for more information
+#pragma warning disable CS8618
+using ddddocrsharp;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
-using ddddocrsharp;
 using Yaap;
 
 internal class Program
 {
     static List<Task> tasks = [];
     static List<Entity> entities = [];
-    static dddddocr ocr = new(show_ad: false,use_gpu:true);
+    static dddddocr ocr = new(show_ad: false, use_gpu: false);
     static int ide = Random.Shared.Next(1000, 9999);
     static int overSpeed = 0;
     static int lossCount = 0;
@@ -32,7 +33,7 @@ internal class Program
             cat.RemoveAll(x => x == string.Empty || x == "");
             List<string> cls = spl.Length > 3 ? [.. spl[3].Split(',')] : [];
             cls.RemoveAll(x => x == string.Empty || x == "");
-            entities.Add(new Entity(spl[0], spl[1], cat, cls, [], false, spl[4] ?? "1",null));
+            entities.Add(new Entity(spl[0], spl[1], cat, cls, [], false, spl[4] ?? "1", null));
         }
         entities = [.. entities.DistinctBy(x => x.username)];
         await Task.Factory.StartNew(async () =>
@@ -59,7 +60,7 @@ internal class Program
     }
     static async Task Run(dddddocr ocr, int serial, Entity entity)
     {
-        HttpResponseMessage res = null;
+        HttpResponseMessage? res;
         try
         {
             var client = BuildInstance();
@@ -72,7 +73,7 @@ internal class Program
             YaapConsole.WriteLine($"{serial:D4}:{auth}");
             res = await Login(client, entity.username, AESEncrypt(entity.password), captcha!.data.uuid, auth);
             var ls = await res.Content.ReadFromJsonAsync<LoginRoot>();
-            if (ls.msg.Contains("密码错误")) { WriteFileAsync("error.txt", ide.ToString() + entity.ToString()); return; }
+            if (ls!.msg.Contains("密码错误")) { _ = WriteFileAsync("error.txt", ide.ToString() + entity.ToString()); return; }
             YaapConsole.WriteLine($"{entity.username}:{ls!.code}");
             if (ls!.code == 200)
             {
@@ -81,9 +82,9 @@ internal class Program
                 client.DefaultRequestHeaders.Add("Cookie", $"Authorization={ls.data.token}");
                 client.DefaultRequestHeaders.Add("batchId", entity.batchId);
                 if (entity.mode == "0")
-                    await SelectCourseSoft(client, entity);
+                    await QueryClaim(client, entity);
                 else
-                    await SelectCourseTillDie(client, entity);
+                    await DirectClaim(client, entity);
             }
             else
             {
@@ -136,7 +137,7 @@ internal class Program
 
     static async Task<HttpResponseMessage> Captcha(HttpClient client)
     {
-        var content = new FormUrlEncodedContent(new Dictionary<string, string> { });
+        var content = new FormUrlEncodedContent([]);
         content.Headers.ContentLength = 0;
         return await client.PostAsync("https://jwxk.hrbeu.edu.cn/xsxk/auth/captcha", content);
     }
@@ -154,7 +155,7 @@ internal class Program
         return await res;
     }
 
-    static async Task<List<Row>> GetAvailableClass(HttpClient client, Entity entity)
+    static async Task<List<Row>> GetRowList(HttpClient client, Entity entity)
     {
         await Task.Delay(350);
         var urlList = "https://jwxk.hrbeu.edu.cn/xsxk/elective/clazz/list";
@@ -191,7 +192,7 @@ internal class Program
         catch (Exception ex)
         {
             if (responsePublicList.Content.ReadAsStringAsync().Result.Contains("请求过快")) goto loc_resent1;
-            YaapConsole.WriteLine(entity.username + ":Error at List:" + await responsePublicList.Content.ReadAsStringAsync());
+            YaapConsole.WriteLine(entity.username + ":Error at List:" + await responsePublicList.Content.ReadAsStringAsync() + Environment.NewLine + ex);
         }
         return [];
     }
@@ -225,13 +226,20 @@ internal class Program
                 var addContent = await addResponse.Content.ReadFromJsonAsync<AddRoot>();
                 if (addContent!.code == 200)
                 {
-                    Console.WriteLine($"{entity.username}:{DateTime.Now:HH:mm:ss} {@class.KCM}");
+                    Console.WriteLine($"{entity.username}:Reported {@class.KCM}");
                     try
                     {
-                        entity.done.Add(@class);
-                        await WriteFileAsync("success.txt", $"{entity.username}:{DateTime.Now} {@class} \r\n");
+                        _ = Task.Factory.StartNew(async () =>
+                        {
+                            if (await ValidateClaim(client, entity, @class))
+                            {
+                                entity.done.Add(@class);
+                                Console.WriteLine($"{entity.username}:Verified {@class.KCM}");
+                                await WriteFileAsync("success.txt", $"{entity.username}:{DateTime.Now} {@class} \r\n");
+                            }
+                        });
                     }
-                    catch (Exception ex) { }
+                    catch (Exception) { }
                     return true;
                 }
                 else
@@ -267,7 +275,7 @@ internal class Program
                     lossCount++;
                     return false;
                 }
-                YaapConsole.WriteLine(entity.username + ":Error at Add:" + await addResponse.Content.ReadAsStringAsync());
+                YaapConsole.WriteLine(entity.username + ":Error at Add:" + await addResponse.Content.ReadAsStringAsync() + Environment.NewLine + e);
                 return false;
             }
         }
@@ -278,13 +286,13 @@ internal class Program
         }
     }
 
-    static async Task SelectCourseSoft(HttpClient client, Entity entity)
+    static async Task QueryClaim(HttpClient client, Entity entity)
     {
         while (true)
         {
             if (entity.finished) return;
             Dictionary<string, int>? xgxklb = new() { { "A", 12 }, { "B", 13 }, { "C", 14 }, { "D", 15 }, { "E", 16 }, { "F", 17 }, { "A0", 18 } };
-            List<Row> publicList = (await GetAvailableClass(client, entity));
+            List<Row> publicList = (await GetRowList(client, entity));
             List<Row> privateList = [];
             if (entity.classname.Count > 0 && entity.category.Count > 0)
             {
@@ -317,10 +325,10 @@ internal class Program
                 }
         }
     }
-    static async Task SelectCourseTillDie(HttpClient client, Entity entity)
+    static async Task DirectClaim(HttpClient client, Entity entity)
     {
         Dictionary<string, int>? xgxklb = new() { { "A", 12 }, { "B", 13 }, { "C", 14 }, { "D", 15 }, { "E", 16 }, { "F", 17 }, { "A0", 18 } };
-        List<Row> publicList = await GetAvailableClass(client, entity);
+        List<Row> publicList = await GetRowList(client, entity);
         List<Row> privateList = [];
         if (entity.classname.Count > 0 && entity.category.Count > 0)
         {
@@ -343,7 +351,7 @@ internal class Program
         while (true)
         {
             privateList.RemoveAll(q => entity.done.Any(p => p.KCH == q.KCH));
-            if( privateList.Count == 0 ) { return; }
+            if (privateList.Count == 0) { return; }
             foreach (Row @class in privateList)
             {
                 await Task.Delay(400);
@@ -352,11 +360,32 @@ internal class Program
                     await Console.Out.WriteLineAsync(entity.username + ":finished");
                     return;
                 }
-                Add(client, entity, @class);
+                _ = Add(client, entity, @class);
             }
         }
     }
-    private static SemaphoreSlim writeLock = new(1, 1);
+
+    static async Task<bool> ValidateClaim(HttpClient client, Entity entity, Row @class)
+    {
+        var selectUrl = "https://jwxk.hrbeu.edu.cn/xsxk/elective/hrbeu/select";
+        var selectData = new Dictionary<string, string>() {
+            { "jxblx","YXKCYX_XGKC"}
+        };
+        HttpRequestMessage hrt = new(HttpMethod.Post, selectUrl);
+        hrt.Headers.Referrer = new($"https://jwxk.hrbeu.edu.cn/xsxk/elective/grablessons?batchId={entity.batchId}");
+        hrt.Headers.Host = "jwxk.hrbeu.edu.cn";
+        hrt.Content = new FormUrlEncodedContent(selectData);
+        hrt.Content.Headers.ContentType = new("application/x-www-form-urlencoded");
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        var selectResponse = await client.SendAsync(hrt);
+        stopwatch.Stop();
+        totalts += stopwatch.Elapsed;
+        sendCount += 1;
+        var selectContent = await selectResponse.Content.ReadFromJsonAsync<SelectRoot>();
+        return selectContent!.data.Any(q => q.KCH == @class.KCH);
+    }
+
+    private static readonly SemaphoreSlim writeLock = new(1, 1);
 
     public static async Task WriteFileAsync(string path, string text)
     {
@@ -379,6 +408,12 @@ public class AddRoot
     public int code { get; set; }
     public string msg { get; set; }
     public object data { get; set; }
+}
+public class SelectRoot
+{
+    public int code { get; set; }
+    public string msg { get; set; }
+    public List<Row> data { get; set; }
 }
 public class CaptchaRoot
 {
@@ -659,7 +694,7 @@ public partial record Row
     public string XDFS { get; set; }
     public string SFSC { get; set; }
 }
-public record Entity(string username, string password, List<string> category, List<string> classname, List<Row> done, bool finished, string mode,string? batchId)
+public record Entity(string username, string password, List<string> category, List<string> classname, List<Row> done, bool finished, string mode, string? batchId)
 {
     public bool finished { get; set; } = finished;
     public string? batchId { get; set; } = batchId;
