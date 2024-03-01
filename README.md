@@ -51,7 +51,6 @@ https://github.com/XUEWUQIUSHUANG/gggggggggrab
  };
 ```
 2. 代理可能会被检测，目前最新思路是使用云服务商的闲置服务器跑脚本，几块钱几个小时，BAN就换。
-3. 此版本BatchID需要手动修改，自动化的思路是获取Login接口回执中的Data.Student.hrbeulcmap中的第一个元素的Key。
 ## Usage
 在exe同目录下建立acc.txt，格式如下： 
 
