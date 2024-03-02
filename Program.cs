@@ -12,10 +12,12 @@ internal class Program
     static List<Entity> Entities = [];
     static readonly DdddOcr Ocr = new(show_ad: false, use_gpu: false);
     static readonly int ThreadID = Random.Shared.Next(1000, 9999);
-    static int OverSpeedCounter = 0;
+    static int NetworkOverSpeedCounter = 0;
     static int NetworkLossCounter = 0;
-    static TimeSpan TotalTimeSpan = TimeSpan.Zero;
-    static int NetworkSendCounter = 0;
+    public static int NetworkSendCounter = 0;
+    static int NetworkDelayCounter = 0;
+    public static TimeSpan TotalTimeSpan = TimeSpan.Zero;
+    static TimeSpan TotalDelayTimeSpan = TimeSpan.Zero;
     static readonly Aes AesUtil = Aes.Create();
 
     /// <summary>
@@ -51,10 +53,12 @@ internal class Program
             while (true)
             {
                 await Task.Delay(1000);
-                Console.Title = $"epoch={(NetworkSendCounter == 0 ? "0" : NetworkSendCounter.ToString() + " avg=" + (TotalTimeSpan / NetworkSendCounter).TotalMilliseconds.ToString() + "ms")} thread={ClaimTaskPool.Count(t => !t.IsCompleted)}/{ClaimTaskPool.Count} overSpeed={(NetworkSendCounter == 0 ? 0 : (OverSpeedCounter * 100 / NetworkSendCounter))}% loss={(NetworkSendCounter == 0 ? 0 : (NetworkLossCounter * 100 / NetworkSendCounter))}%";
+                Console.Title = $"epoch={(NetworkSendCounter == 0 ? "0" : NetworkSendCounter.ToString() + " avg=" + (TotalTimeSpan / NetworkSendCounter).TotalMilliseconds.ToString() + "ms")} thread={ClaimTaskPool.Count(t => !t.IsCompleted)}/{ClaimTaskPool.Count} overSpeed={(NetworkSendCounter == 0 ? 0 : (NetworkOverSpeedCounter * 100 / NetworkSendCounter))}% loss={(NetworkSendCounter == 0 ? 0 : (NetworkLossCounter * 100 / NetworkSendCounter))}% delay={(NetworkDelayCounter == 0 ? "0" : NetworkDelayCounter.ToString() + " davg=" + (TotalDelayTimeSpan / NetworkDelayCounter).TotalMilliseconds.ToString() + "ms")}";
                 NetworkSendCounter = 0;
-                OverSpeedCounter = 0;
+                NetworkOverSpeedCounter = 0;
                 NetworkLossCounter = 0;
+                NetworkDelayCounter = 0;
+                TotalDelayTimeSpan = TimeSpan.Zero;
                 TotalTimeSpan = TimeSpan.Zero;
             }
         });
@@ -236,8 +240,6 @@ internal class Program
     /// <returns>课程列表</returns>
     static async Task<List<Row>> GetRowList(HttpClient client, Entity entity)
     {
-        //防止超速
-        await Task.Delay(350);
         //超速重发标识
         loc_resent1:
         //构造负载
@@ -249,18 +251,23 @@ internal class Program
         content.Headers.ContentLength = content.ReadAsStringAsync().Result.Length;
         HttpRequestMessage hrt = BuildPostRequest(listUrl, entity, null, content);
         //发送请求
-        var responsePublicList = await client.SendAsync(hrt);
+        var responsePublicList = await client.LimitSendAsync(hrt, entity);
         ListRoot? classList;
         try
         {
             //反序列化接口结果
             classList = await responsePublicList.Content.ReadFromJsonAsync<ListRoot>();
-            Console.WriteLine($"{entity.username}:available={classList!.data.total}");
+            if(classList!.data.rows.Any(q => q.classCapacity > q.numberOfSelected)) 
+                Console.WriteLine($"{entity.username}:available={classList!.data.total}");
             return [.. classList!.data.rows];
         }
         catch (Exception ex)
         {
-            if (responsePublicList.Content.ReadAsStringAsync().Result.Contains("请求过快")) goto loc_resent1;
+            if (responsePublicList.Content.ReadAsStringAsync().Result.Contains("请求过快"))
+            {
+                NetworkOverSpeedCounter += 1;
+                goto loc_resent1;
+            }
             Console.WriteLine(entity.username + ":Error at List:" + await responsePublicList.Content.ReadAsStringAsync() + Environment.NewLine + ex);
         }
         return [];
@@ -288,12 +295,8 @@ internal class Program
             //超速重发标识
             loc_resent:
             HttpRequestMessage hrt = BuildPostRequest(addUrl, entity, new("application/x-www-form-urlencoded"), new FormUrlEncodedContent(addData));
-            Stopwatch stopwatch = Stopwatch.StartNew();
             //发送请求
-            var addResponse = await client.SendAsync(hrt);
-            stopwatch.Stop();
-            TotalTimeSpan += stopwatch.Elapsed;
-            NetworkSendCounter += 1;
+            var addResponse = await client.LimitSendAsync(hrt, entity);
             try
             {
                 //反序列化接口信息
@@ -318,7 +321,7 @@ internal class Program
                 }
                 else
                 {
-                    if (addContent.msg.Contains("请求过快")) { OverSpeedCounter += 1; goto loc_resent; }
+                    if (addContent.msg.Contains("请求过快")) { NetworkOverSpeedCounter += 1; goto loc_resent; }
                     if (addContent.msg.Contains("已选满5门，不可再选")) { entity.finished = true; return true; }
                     if (addContent.msg.Contains("容量已满")) return false;
                     if (addContent.msg.Contains("选课结果中") || addContent.msg.Contains("不能重复选课")) { return false; };
@@ -373,16 +376,13 @@ internal class Program
     {
         //构造请求
         HttpRequestMessage hrt = BuildPostRequest(selectUrl, entity, new("application/x-www-form-urlencoded"), new FormUrlEncodedContent(selectData));
-        Stopwatch stopwatch = Stopwatch.StartNew();
         //发送请求
-        var selectResponse = await client.SendAsync(hrt);
-        stopwatch.Stop();
-        TotalTimeSpan += stopwatch.Elapsed;
-        NetworkSendCounter += 1;
+        var selectResponse = await client.LimitSendAsync(hrt, entity);
         //反序列化接口信息
         var selectContent = await selectResponse.Content.ReadFromJsonAsync<SelectRoot>();
         //如果已到选课上限，线程退出
         if (selectContent!.data.Count == 5) { entity.finished = true; await Console.Out.WriteLineAsync(entity.username + ":finished"); }
+        await Console.Out.WriteLineAsync($"{entity.username}:selected count={selectContent!.data.Count}");
         return selectContent!.data.Any(q => q.KCH == @class.KCH);
     }
 
@@ -400,13 +400,11 @@ internal class Program
             if (entity.finished) return;
             List<Row> publicList = await GetRowList(client, entity);
             List<Row> privateList = GetPrivateList(publicList, entity);
-            await Console.Out.WriteLineAsync(privateList.Count.ToString());
             privateList = privateList.Where(p => p.classCapacity > p.numberOfSelected).ToList();
             if (privateList.Count > 0)
                 foreach (Row @class in privateList)
                 {
-                    _ = Add(client, entity, @class);
-                    await Task.Delay(300);
+                    await Add(client, entity, @class);
                 }
         }
     }
@@ -420,7 +418,6 @@ internal class Program
     {
         List<Row> publicList = await GetRowList(client, entity);
         List<Row> privateList = GetPrivateList(publicList, entity);
-        await Console.Out.WriteLineAsync(entity.username + ":" + string.Join(',', privateList.Select(t => t.KCM)));
         while (true)
         {
             privateList.RemoveAll(q => entity.done.Any(p => p.KCH == q.KCH));
@@ -428,8 +425,7 @@ internal class Program
             foreach (Row @class in privateList)
             {
                 if (entity.finished) return;
-                await Task.Delay(300);
-                _ = Add(client, entity, @class);
+                await Add(client, entity, @class);
             }
         }
     }
@@ -482,5 +478,37 @@ internal class Program
         {
             writeLock.Release();
         }
+    }
+    /// <summary>
+    /// 等待直到最低要求时间，若时间超过立即返回
+    /// </summary>
+    /// <param name="sw">计时器</param>
+    /// <param name="requiredMillSeconds">最低要求时间</param>
+    /// <returns>void</returns>
+    public static async Task DelayTillLimit(Stopwatch sw, int requiredMillSeconds)
+    {
+        if (sw.ElapsedMilliseconds < requiredMillSeconds)
+        {
+            await Task.Delay(Convert.ToInt32(requiredMillSeconds - sw.ElapsedMilliseconds));
+        }
+        else if (sw.ElapsedMilliseconds > requiredMillSeconds)
+        {
+            TotalDelayTimeSpan += new TimeSpan(0, 0, 0, 0, Convert.ToInt32(sw.ElapsedMilliseconds - requiredMillSeconds));
+            NetworkDelayCounter += 1;
+        }
+    }
+}
+
+public static class HttpClientExtensions
+{
+    static int LimitMillSeconds = 350;
+    public static async Task<HttpResponseMessage> LimitSendAsync(this HttpClient client, HttpRequestMessage hrm, Entity entity)
+    {
+        await Program.DelayTillLimit(entity.stopwatch, LimitMillSeconds);
+        entity.stopwatch.Restart();
+        var res = await client.SendAsync(hrm);
+        Program.NetworkSendCounter += 1;
+        Program.TotalTimeSpan += entity.stopwatch.Elapsed;
+        return res;
     }
 }
