@@ -35,30 +35,14 @@ https://github.com/XUEWUQIUSHUANG/gggggggggrab
 
 
   Once the user has successfully registered, he or she will be given a password and an account.If the user fails to take care of his account and password and causes damage to himself, the developers of this site or a third party, the user will be fully responsible.In addition, each user is solely responsible for all activities and events in his/her account.The User may change his/her password and icon at any time, and may end his/her old account and open a new one.The user agrees to notify the developers of this site immediately of any unauthorized use of the user's account or any breach of security.Special note to users, the use of the Internet must comply with relevant state policies and laws, including criminal law, national security law, confidentiality laws, regulations on the security and protection of computer information systems, etc., to protect national interests and national security, for illegal use of the Internet and all the responsibilities arising from the user is fully responsible.Users in the application for the use of network services provided by the site, must provide accurate personal information to the site developers, such as any changes in personal information, must be updated in a timely manner.After successful registration, the site developers will give each user a user account and the corresponding password, the user account and password by the user is responsible for safekeeping; the user should be legally responsible for all activities and events carried out by its user account.Users shall not use the services of this site to send or disseminate sensitive information and information that violates the state legal system, including but not limited to the following information: 1) opposing the basic principles established by the Constitution; 2) endangering national security, leaking state secrets, subverting state power, undermining national unity; 3) damaging national honor and interests; 4) inciting ethnic hatred, ethnic discrimination, undermining national unity; 5) undermining the5) undermine national religious policy, promote cults and feudal superstitions; 6) spread rumors, disturbing social order and undermining social stability; 7) disseminate obscenity, pornography, gambling, violence, murder, terrorism or abetting a crime; 8) insulting or defaming others, infringing on the legitimate rights and interests of others; 9) contains other content prohibited by laws and administrative regulations. Users in the process of using the site network services, must follow the following principles: compliance with relevant Chinese laws and regulations; shall not use the network service system for any illegal purpose; to comply with all network protocols, regulations and procedures related to network services; shall not use the site network service system to conduct any behavior that may adversely affect the normal operation of the Internet; shall not use the site network service system to transmitAny harassment, vilification of others, abusive, threatening, vulgar and obscene or any other illegal information material; shall not use this site network service system to carry out any unfavorable to the developer of the site behavior. The use of this site site services, users should strengthen the protection of personal data awareness, and pay attention to the password protection of personal passwords. Stealing other people's user accounts or use network communications to harass others, are illegal.Users shall not use any illegal means such as testing and cheating to steal other users' accounts and harass others. The developer of this site will modify the terms of service when necessary, once the content of this policy changes, the developer of this site will be directly on the site website to publish the contents of the policy after the modification, the publication of the behavior is considered to be the developer of this site has notified the user of the revised content.The developer of this site may also through other appropriate means to the user prompted to modify the content.If you do not agree with the developer of this site on the terms of this policy changes made, the user has the right to stop using the network services.If the user continues to use the network services, the user is deemed to accept the site developers of the terms of the modifications made to this policy.This site developers especially remind the user, this site developers in order to protect the autonomy of business development and adjustment, has the right to modify or interrupt the service at any time without notice to the user, this site developers to exercise the right to modify or interrupt the service does not need to be responsible for the user or any third party.Users must agree to the terms of the premise, this site developers only begin to provide services to users. All the contents of this warehouse are for reference only, and any loss caused by the use of any content of this warehouse has nothing to do with the authors and contributors of this warehouse.The right to interpret the above terms and conditions belongs to the developer of this site.
-## Known Issues
-1. 金智运维会手动BAN IP，已将脚本升级为分布式代理模式，在此不发布，使用代理的思路是用*HttpClientHandler*添加
-```csharp
- HttpClientHandler httpClientHandler = new HttpClientHandler()
- {
-     Proxy = new WebProxy(proxies[procCount % proxies.Length]),
-     UseProxy = true,
-     ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
- };
- procCount += 1;
- HttpClient client = new(httpClientHandler)
- {
-     Timeout = TimeSpan.FromSeconds(30)
- };
-```
-2. 代理可能会被检测，目前最新思路是使用云服务商的闲置服务器跑脚本，几块钱几个小时，BAN就换。
+
 ## Usage
-在exe同目录下建立acc.txt，格式如下： 
+在exe同目录下建立acc.txt，格式为<账号> <密码> [类别] [关键字]
 
 ```txt
 acc pwd  网络 
 acc pwd A,B,C 网络 
 acc pwd  网络 
-acc pwd  中国古建筑文化与鉴赏（网络）,如何赢得大学生创新创业大赛（网络） 
 acc pwd  中国古建筑文化与鉴赏（网络）,如何赢得大学生创新创业大赛（网络） 
 acc pwd  日语入门和朋辈心理辅导 
 acc pwd A0,F  
@@ -77,7 +61,7 @@ acc pwd B,F 网络
 
 课程名为模糊匹配，类型与课程名为与关系。
 ## Dependencies
-按需选择打码库，请手动实现ddddocr的IDisposable接口。 
+二选一
 
 ddddocr-cpu:https://github.com/zixing131/ddddocrsharp 
 
