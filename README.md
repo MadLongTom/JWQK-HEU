@@ -1,4 +1,7 @@
 # JWQK-HEU
+
+**The project has been migrated to https://github.com/MadLongTom/CourseClaimer.HEU**
+
 ## Other Versions 
 **C#** : https://github.com/MadLongTom/JWQK-HEU 
 
